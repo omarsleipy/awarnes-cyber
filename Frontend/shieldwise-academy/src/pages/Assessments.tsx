@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CyberButton } from "@/components/CyberButton";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClipboardCheck, Clock, ShieldAlert, Lock, FileCheck, AlertTriangle, Plus, Trash2, Key, CheckCircle2, Users } from "lucide-react";
-import { api, mockUsers } from "@/services/api";
+import { api } from "@/services/api";
 import { usePortal } from "@/contexts/PortalContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,7 +41,9 @@ const Assessments = () => {
   const [newDuration, setNewDuration] = useState("30");
   const [newQuestions, setNewQuestions] = useState<Question[]>([{ question: "", options: ["", "", "", ""], correct: 0 }]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [generatedPasswords, setGeneratedPasswords] = useState<{ userId: string; password: string }[]>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role: string; department: string }>>([]);
 
   // --- Trainee: Enter exam password ---
   const handleEnterExam = (exam: typeof exams[0]) => {
@@ -76,8 +78,27 @@ const Assessments = () => {
   const toggleUser = (uid: string) => {
     setSelectedUsers((prev) => prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]);
   };
+  const toggleDepartment = (department: string) => {
+    setSelectedDepartments((prev) =>
+      prev.includes(department) ? prev.filter((d) => d !== department) : [...prev, department]
+    );
+  };
+
+  useEffect(() => {
+    api.getUsers().then((rows) => setUsers(rows));
+  }, []);
+
+  const departments = useMemo(
+    () => Array.from(new Set(users.filter((u) => u.role === "trainee").map((u) => u.department).filter(Boolean))).sort(),
+    [users]
+  );
   const handleCreateExam = async () => {
-    const res = await api.createExam({ title: newTitle, questions: newQuestions, allowedUsers: selectedUsers });
+    const res = await api.createExam({
+      title: newTitle,
+      questions: newQuestions,
+      allowedUsers: selectedUsers,
+      allowedDepartments: selectedDepartments,
+    });
     setGeneratedPasswords(res.passwords);
     setCreationStep(3);
     toast({ title: "Exam Created", description: `${res.passwords.length} unique passwords generated.` });
@@ -88,6 +109,7 @@ const Assessments = () => {
     setNewDuration("30");
     setNewQuestions([{ question: "", options: ["", "", "", ""], correct: 0 }]);
     setSelectedUsers([]);
+    setSelectedDepartments([]);
     setGeneratedPasswords([]);
   };
 
@@ -99,12 +121,14 @@ const Assessments = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Security Assessments</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {role === "admin" ? "Manage exams and generate access passwords" : "Proctored exams with anti-cheating enforcement"}
+            {role === "admin" || role === "super_admin"
+              ? "Manage exams and generate access passwords"
+              : "Proctored exams with anti-cheating enforcement"}
           </p>
         </div>
       </div>
 
-      {role === "admin" ? (
+      {role === "admin" || role === "super_admin" ? (
         <Tabs defaultValue="exams" className="space-y-6">
           <TabsList className="bg-muted">
             <TabsTrigger value="exams">All Exams</TabsTrigger>
@@ -179,7 +203,7 @@ const Assessments = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {mockUsers.filter((u) => u.role === "trainee").map((user) => (
+                      {users.filter((u) => u.role === "trainee").map((user) => (
                         <tr key={user.id} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer" onClick={() => toggleUser(user.id)}>
                           <td className="px-5 py-3">
                             <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${selectedUsers.includes(user.id) ? "border-primary bg-primary" : "border-border"}`}>
@@ -198,9 +222,27 @@ const Assessments = () => {
                 </div>
                 <div className="flex gap-2">
                   <CyberButton variant="outline" onClick={() => setCreationStep(1)}>Back</CyberButton>
-                  <CyberButton onClick={handleCreateExam} disabled={selectedUsers.length === 0}>
+                  <CyberButton onClick={handleCreateExam} disabled={selectedUsers.length === 0 && selectedDepartments.length === 0}>
                     <Key className="h-4 w-4" /> Create & Generate Passwords ({selectedUsers.length})
                   </CyberButton>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">Assign by department (one click)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {departments.map((department) => (
+                      <button
+                        key={department}
+                        onClick={() => toggleDepartment(department)}
+                        className={`rounded-full border px-3 py-1 text-xs ${
+                          selectedDepartments.includes(department)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {department}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -224,7 +266,7 @@ const Assessments = () => {
                     </thead>
                     <tbody>
                       {generatedPasswords.map((pw) => {
-                        const user = mockUsers.find((u) => u.id === pw.userId);
+                        const user = users.find((u) => u.id === pw.userId);
                         return (
                           <tr key={pw.userId} className="border-b border-border/50">
                             <td className="px-5 py-3">

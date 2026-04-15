@@ -11,6 +11,12 @@ def _out(org) -> OrganizationOut:
         name=org.name,
         status=org.status,
         authMode=org.auth_mode,
+        ldapServer=org.ldap_server,
+        ldapPort=org.ldap_port,
+        ldapBaseDn=org.ldap_base_dn,
+        ldapBindDn=org.ldap_bind_dn,
+        ldapUserFilter=org.ldap_user_filter,
+        ldapUseSsl=org.ldap_use_ssl,
     )
 
 

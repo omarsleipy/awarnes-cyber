@@ -19,6 +19,11 @@ async def get_by_email(session: AsyncSession, email: str, organization_id: int |
     return result.scalar_one_or_none()
 
 
+async def get_all_by_email(session: AsyncSession, email: str) -> list[User]:
+    result = await session.execute(select(User).where(User.email == email))
+    return list(result.scalars().all())
+
+
 async def get_all(session: AsyncSession, organization_id: int, skip: int = 0, limit: int = 500) -> list[User]:
     result = await session.execute(
         select(User).where(User.organization_id == organization_id).offset(skip).limit(limit)

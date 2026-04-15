@@ -29,4 +29,10 @@ class OrganizationOut(BaseModel):
     name: str
     status: str
     authMode: str
+    ldapServer: str = ""
+    ldapPort: int = 389
+    ldapBaseDn: str = ""
+    ldapBindDn: str = ""
+    ldapUserFilter: str = "(objectClass=person)"
+    ldapUseSsl: bool = False
 

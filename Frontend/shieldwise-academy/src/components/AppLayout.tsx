@@ -36,7 +36,7 @@ const AppLayout = () => {
           <div>
             <h1 className="text-base font-bold text-foreground tracking-tight">CyberAware</h1>
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-              {role === "admin" ? "Admin Portal" : "Trainee Portal"}
+              {role === "super_admin" ? "Super Admin Portal" : role === "admin" ? "Admin Portal" : "Trainee Portal"}
             </p>
           </div>
         </div>
@@ -44,17 +44,17 @@ const AppLayout = () => {
         {/* Portal Toggle */}
         <div className="px-3 pt-3">
           <button
-            onClick={() => setRole(role === "admin" ? "trainee" : "admin")}
+            onClick={() => setRole(role === "trainee" ? "admin" : "trainee")}
             className="flex w-full items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            Switch to {role === "admin" ? "Trainee" : "Admin"} Portal
+            Switch to {role === "trainee" ? "Admin" : "Trainee"} Portal
           </button>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {role === "admin" ? (
+          {role === "admin" || role === "super_admin" ? (
             <>
               <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Overview</p>
               <SidebarNavItem to="/" icon={LayoutDashboard} label="Dashboard" />
@@ -70,6 +70,7 @@ const AppLayout = () => {
               <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Admin</p>
               <SidebarNavItem to="/users" icon={Users} label="Users" />
               <SidebarNavItem to="/settings" icon={Settings} label="Settings" />
+              {role === "super_admin" && <SidebarNavItem to="/organizations" icon={Shield} label="Organizations" />}
             </>
           ) : (
             <>

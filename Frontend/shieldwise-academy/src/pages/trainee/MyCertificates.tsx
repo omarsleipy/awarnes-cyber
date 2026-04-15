@@ -11,6 +11,18 @@ const MyCertificates = () => {
     api.getCertificates().then(setCertificates);
   }, []);
 
+  const handleDownload = async (certificateId: string, examTitle: string) => {
+    const blob = await api.downloadCertificatePdf(certificateId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${examTitle.replace(/\s+/g, "-").toLowerCase()}-certificate.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -58,7 +70,12 @@ const MyCertificates = () => {
                   </div>
                 </div>
 
-                <CyberButton variant="outline" size="sm" className="w-full">
+                <CyberButton
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => void handleDownload(cert.id, cert.examTitle)}
+                >
                   <Download className="h-3.5 w-3.5" /> Download Certificate (PDF)
                 </CyberButton>
               </div>

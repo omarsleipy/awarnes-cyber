@@ -73,6 +73,18 @@ export const mockCertificates = [
 ];
 
 export type Certificate = (typeof mockCertificates)[number];
+export type Organization = {
+  id: string;
+  name: string;
+  status: "active" | "suspended";
+  authMode: "local" | "ldap";
+  ldapServer?: string;
+  ldapPort?: number;
+  ldapBaseDn?: string;
+  ldapBindDn?: string;
+  ldapUserFilter?: string;
+  ldapUseSsl?: boolean;
+};
 
 export const mockCampaigns = [
   { id: "camp1", name: "Q1 Finance Dept Phish", template: "Password Reset", targetDept: "Finance", sent: 245, clicked: 31, reported: 189, status: "completed", createdAt: "2026-01-10" },
@@ -105,9 +117,12 @@ export const mockLdapConfig = {
 
 export const api = {
   // Auth
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, organizationId?: string) => {
     try {
-      const res = await request<{ success: true; user: Record<string, unknown>; token: string } | { success: false; error: string }>("/auth/login", { method: "POST", body: { email, password } });
+      const res = await request<{ success: true; user: Record<string, unknown>; token: string } | { success: false; error: string }>(
+        "/auth/login",
+        { method: "POST", body: { email, password, organizationId } }
+      );
       if (res.success && "token" in res) {
         setAuthToken(res.token);
         return res;
@@ -196,6 +211,16 @@ export const api = {
       return { success: true };
     }
   },
+  recordViolation: async (examId: string, reason: string) => {
+    try {
+      return await request<{ success: boolean; violationCount: number; disqualified: boolean }>(
+        "/exams/violation/record",
+        { method: "POST", body: { examId, reason } }
+      );
+    } catch {
+      return { success: true, violationCount: 0, disqualified: false };
+    }
+  },
 
   // Certificates
   getCertificates: async () => {
@@ -205,13 +230,28 @@ export const api = {
       return mockCertificates;
     }
   },
+  downloadCertificatePdf: async (certificateId: string) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/exams/certificates/${certificateId}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error("Failed to download certificate");
+    }
+    return await res.blob();
+  },
 
   // Exam Creation (Admin)
-  createExam: async (exam: { title: string; questions: { question: string; options: string[]; correct: number }[]; allowedUsers: string[] }) => {
+  createExam: async (exam: { title: string; questions: { question: string; options: string[]; correct: number }[]; allowedUsers: string[]; allowedDepartments?: string[] }) => {
     try {
       return await request<{ examId: string; passwords: { userId: string; password: string }[] }>("/exams", {
         method: "POST",
-        body: { title: exam.title, questions: exam.questions, allowed_users: exam.allowedUsers },
+        body: {
+          title: exam.title,
+          questions: exam.questions,
+          allowed_users: exam.allowedUsers,
+          allowed_departments: exam.allowedDepartments ?? [],
+        },
       });
     } catch {
       const passwords = exam.allowedUsers.map((uid) => ({ userId: uid, password: Math.random().toString(36).slice(2, 10).toUpperCase() }));
@@ -297,6 +337,46 @@ export const api = {
     } catch {
       return userIds.map((uid) => ({ userId: uid, password: Math.random().toString(36).slice(2, 10).toUpperCase() }));
     }
+  },
+  // Super Admin / Organizations
+  getOrganizations: async () => {
+    try {
+      return await request<Organization[]>("/organizations");
+    } catch {
+      return [{ id: "1", name: "Default Company", status: "active", authMode: "local" }];
+    }
+  },
+  createOrganization: async (name: string) => {
+    return await request<Organization>("/organizations", { method: "POST", body: { name } });
+  },
+  updateOrganizationStatus: async (organizationId: string, status: "active" | "suspended") => {
+    return await request<Organization>(`/organizations/${organizationId}/status`, {
+      method: "PATCH",
+      body: { status },
+    });
+  },
+  updateOrganizationAuthMode: async (organizationId: string, authMode: "local" | "ldap") => {
+    return await request<Organization>(`/organizations/${organizationId}/auth-mode`, {
+      method: "PATCH",
+      body: { authMode },
+    });
+  },
+  updateOrganizationLdap: async (
+    organizationId: string,
+    config: {
+      ldapServer: string;
+      ldapPort: number;
+      ldapBaseDn: string;
+      ldapBindDn: string;
+      ldapBindPassword: string;
+      ldapUserFilter: string;
+      ldapUseSsl: boolean;
+    }
+  ) => {
+    return await request<Organization>(`/organizations/${organizationId}/ldap`, {
+      method: "PATCH",
+      body: config,
+    });
   },
 };
 

@@ -23,12 +23,15 @@ from modules.users.router import router as users_router
 async def _ensure_schema_compatibility() -> None:
     """Best-effort additive migration for existing single-tenant DBs."""
     statements = [
+        "CREATE TABLE IF NOT EXISTS organizations (id SERIAL PRIMARY KEY, name VARCHAR(255) UNIQUE, status VARCHAR(32) DEFAULT 'active', auth_mode VARCHAR(32) DEFAULT 'local', ldap_server VARCHAR(255) DEFAULT '', ldap_port INTEGER DEFAULT 389, ldap_base_dn VARCHAR(500) DEFAULT '', ldap_bind_dn VARCHAR(500) DEFAULT '', ldap_bind_password VARCHAR(500) DEFAULT '', ldap_user_filter VARCHAR(255) DEFAULT '(objectClass=person)', ldap_use_ssl BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE exams ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE courses ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE phishing_campaigns ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE phishing_recipients ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
+        "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_org_email ON users (organization_id, email)",
     ]
     async with engine.begin() as conn:
         for sql in statements:

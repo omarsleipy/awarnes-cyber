@@ -64,6 +64,11 @@ class ReportDisqualificationRequest(BaseModel):
     reason: str
 
 
+class ViolationRecordRequest(BaseModel):
+    examId: str
+    reason: str
+
+
 class GeneratePasswordsRequest(BaseModel):
     userIds: list[str]
 

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import get_settings
 from core.ldap_provider import authenticate_ldap_user
 from core.security import verify_password, create_access_token
-from modules.users.repository import get_by_email, update_last_login
+from modules.users.repository import get_all_by_email, get_by_email, update_last_login
 from modules.organizations.repository import get_by_id as org_get_by_id
 
 
@@ -21,7 +21,13 @@ async def login(session: AsyncSession, email: str, password: str, organization_i
         except ValueError:
             return {"success": False, "error": "Invalid organization"}
 
-    user = await get_by_email(session, email, organization_id=org_id_int)
+    if org_id_int is None:
+        users = await get_all_by_email(session, email)
+        if len(users) > 1:
+            return {"success": False, "error": "Multiple organizations found. Provide organizationId."}
+        user = users[0] if users else None
+    else:
+        user = await get_by_email(session, email, organization_id=org_id_int)
     if not user:
         return {"success": False, "error": "Invalid credentials"}
 

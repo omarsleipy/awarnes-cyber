@@ -60,15 +60,17 @@ const ExamEngine = () => {
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        warningsRef.current += 1;
-        setWarnings(warningsRef.current);
+        const newWarnings = warningsRef.current + 1;
+        warningsRef.current = newWarnings;
+        setWarnings(newWarnings);
+        void api.recordViolation(examId || "", "tab-switch detected");
 
-        if (warningsRef.current >= 3) {
+        if (newWarnings >= 3) {
           setPhase("disqualified");
           api.reportDisqualification(examId || "", "3 tab-switch violations");
         } else {
           toast({
-            title: `⚠️ Warning ${warningsRef.current}/3`,
+            title: `⚠️ Warning ${newWarnings}/3`,
             description: "Tab switching detected. 3 violations will disqualify you.",
             variant: "destructive",
           });

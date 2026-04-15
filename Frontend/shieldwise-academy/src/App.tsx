@@ -21,6 +21,7 @@ import MyCertificates from "./pages/trainee/MyCertificates";
 import UserManagement from "./pages/admin/UserManagement";
 import CreateCampaign from "./pages/admin/CreateCampaign";
 import AdminSettingsPage from "./pages/admin/SettingsPage";
+import OrganizationsPage from "./pages/admin/OrganizationsPage";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const ProtectedRoutes = () => {
         <Route path="/training" element={<Training />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/settings" element={<AdminSettingsPage />} />
+        <Route path="/organizations" element={<OrganizationsPage />} />
         <Route path="/phishing" element={<CreateCampaign />} />
         <Route path="/my-courses" element={<MyCourses />} />
         <Route path="/exam/:examId" element={<ExamEngine />} />

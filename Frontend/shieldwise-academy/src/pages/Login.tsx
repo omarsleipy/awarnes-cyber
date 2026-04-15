@@ -15,6 +15,7 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [organizationId, setOrganizationId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,11 +24,11 @@ const Login = () => {
     setError("");
     setLoading(true);
 
-    const res = await api.login(email, password);
+    const res = await api.login(email, password, organizationId || undefined);
     setLoading(false);
 
     if (res.success && res.user) {
-      setRole(res.user.role as "admin" | "trainee");
+      setRole(res.user.role as "super_admin" | "admin" | "trainee");
       setIsAuthenticated(true);
       toast({ title: "Welcome back!", description: `Logged in as ${res.user.name}` });
       navigate("/");
@@ -41,10 +42,11 @@ const Login = () => {
     setEmail(loginEmail);
     setPassword("password");
     setLoading(true);
-    const res = await api.login(loginEmail, "password");
+    const quickOrg = type === "admin" ? "1" : "";
+    const res = await api.login(loginEmail, "password", quickOrg || undefined);
     setLoading(false);
     if (res.success && res.user) {
-      setRole(res.user.role as "admin" | "trainee");
+      setRole(res.user.role as "super_admin" | "admin" | "trainee");
       setIsAuthenticated(true);
       toast({ title: "Welcome back!", description: `Logged in as ${res.user.name}` });
       navigate("/");
@@ -80,6 +82,15 @@ const Login = () => {
                 onChange={(e) => { setEmail(e.target.value); setError(""); }}
                 className="bg-muted border-border"
                 required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Organization ID (optional)</label>
+              <Input
+                placeholder="1"
+                value={organizationId}
+                onChange={(e) => { setOrganizationId(e.target.value); setError(""); }}
+                className="bg-muted border-border"
               />
             </div>
             <div className="space-y-2">

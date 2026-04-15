@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { setAuthToken } from "@/services/api";
 
-type PortalRole = "admin" | "trainee";
+type PortalRole = "super_admin" | "admin" | "trainee";
 
 interface PortalContextType {
   role: PortalRole;
@@ -29,8 +29,9 @@ export const PortalProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<PortalRole>("admin");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const userName = role === "admin" ? "Super Admin" : "John Doe";
-  const userEmail = role === "admin" ? "admin@corp.com" : "john@corp.com";
+  const userName = role === "super_admin" ? "Super Admin" : role === "admin" ? "Company Admin" : "John Doe";
+  const userEmail =
+    role === "super_admin" ? "root@cyberaware.local" : role === "admin" ? "admin@corp.com" : "john@corp.com";
 
   const logout = () => {
     setAuthToken(null);

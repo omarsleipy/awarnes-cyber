@@ -1,5 +1,6 @@
 """Exam routes."""
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -10,6 +11,7 @@ from modules.exams.schemas import (
     ReportDisqualificationRequest,
     SubmitExamRequest,
     ValidatePasswordRequest,
+    ViolationRecordRequest,
 )
 from modules.exams import service as exam_service
 
@@ -107,6 +109,47 @@ async def my_certificates(
 ):
     rows = await exam_service.get_certificates_for_user(session, user_id)
     return [c.model_dump() for c in rows]
+
+
+@router.get("/certificates/{certificate_id}/pdf")
+async def certificate_pdf(
+    certificate_id: str,
+    user_id: int = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    try:
+        cid = int(certificate_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Certificate not found") from None
+    pdf_bytes = await exam_service.generate_certificate_pdf(session, cid, user_id)
+    if pdf_bytes is None:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="certificate-{cid}.pdf"'},
+    )
+
+
+@router.post("/violation/record")
+async def violation_record(
+    body: ViolationRecordRequest,
+    user_id: int = Depends(get_current_user_id),
+    organization_id: int = Depends(get_current_organization_id),
+    session: AsyncSession = Depends(get_db),
+):
+    try:
+        exam_id = int(body.examId)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Exam not found") from None
+    disqualified, count = await exam_service.record_violation(
+        session,
+        exam_id=exam_id,
+        user_id=user_id,
+        reason=body.reason,
+        organization_id=organization_id,
+    )
+    return {"success": True, "violationCount": count, "disqualified": disqualified}
 
 
 @router.post("/{exam_id}/generate-passwords")

@@ -149,3 +149,10 @@ async def certificate_create(session: AsyncSession, user_id: int, exam_id: int, 
 async def certificates_get_by_user(session: AsyncSession, user_id: int) -> list[Certificate]:
     result = await session.execute(select(Certificate).where(Certificate.user_id == user_id).order_by(Certificate.issued_at.desc()))
     return list(result.scalars().all())
+
+
+async def certificate_get_by_id_for_user(session: AsyncSession, certificate_id: int, user_id: int) -> Certificate | None:
+    result = await session.execute(
+        select(Certificate).where(Certificate.id == certificate_id, Certificate.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
