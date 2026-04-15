@@ -1,0 +1,22 @@
+# Isolated PostgreSQL for awarnes-cyber (host port 5433 → container 5432).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: awarnes-cyber-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cyberaware
+    ports:
+      - "5433:5432"
+    volumes:
+      - awarnes_cyber_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cyberaware"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  awarnes_cyber_pgdata:

@@ -1,13 +1,18 @@
 """Application configuration from environment."""
-from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     """App settings loaded from env and .env file."""
 
-    # Database
-    DB_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/cyberaware"
+    # Database (accept DB_URL or DATABASE_URL from env)
+    DB_URL: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/cyberaware",
+        validation_alias=AliasChoices("DB_URL", "DATABASE_URL"),
+    )
 
     # JWT
     JWT_SECRET: str = "change-me-in-production-use-long-secret"
