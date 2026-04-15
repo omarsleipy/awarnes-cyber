@@ -72,6 +72,8 @@ export const mockCertificates = [
   { id: "cert2", examTitle: "Email Security Best Practices", score: 88, date: "2026-02-10", status: "valid", expiresAt: "2027-02-10" },
 ];
 
+export type Certificate = (typeof mockCertificates)[number];
+
 export const mockCampaigns = [
   { id: "camp1", name: "Q1 Finance Dept Phish", template: "Password Reset", targetDept: "Finance", sent: 245, clicked: 31, reported: 189, status: "completed", createdAt: "2026-01-10" },
   { id: "camp2", name: "IT Password Reset Lure", template: "IT Alert", targetDept: "IT", sent: 180, clicked: 12, reported: 152, status: "completed", createdAt: "2026-01-25" },

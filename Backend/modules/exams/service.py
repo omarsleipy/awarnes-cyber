@@ -1,9 +1,12 @@
 """Exam business logic: create exam, validate password, questions, submit, proctoring."""
+import logging
 import secrets
 import string
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
+from core.mailer import send_email
 from core.security import hash_password, verify_password
 from modules.exams import repository as repo
 from modules.exams.schemas import (
@@ -16,7 +19,9 @@ from modules.exams.schemas import (
     GeneratePasswordsResponse,
     CertificateResponse,
 )
-from modules.users.repository import get_by_id as user_get_by_id
+from modules.users.repository import get_by_department, get_by_id as user_get_by_id
+
+logger = logging.getLogger(__name__)
 
 
 def _generate_exam_password(length: int = 8) -> str:
@@ -24,31 +29,103 @@ def _generate_exam_password(length: int = 8) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-async def create_exam(session: AsyncSession, payload: ExamCreateRequest, created_by_id: int | None) -> ExamCreateResponse:
-    exam = await repo.exam_create(session, title=payload.title)
-    questions_data = [
-        {"question": q.question, "options": q.options, "correct": q.correct}
-        for q in payload.questions
-    ]
-    await repo.questions_create_many(session, exam.id, questions_data)
+async def _send_exam_password_email(
+    *,
+    to_email: str,
+    full_name: str,
+    exam_id: int,
+    exam_title: str,
+    password: str,
+) -> None:
+    settings = get_settings()
+    exam_link = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/exam/{exam_id}"
+    subject = f"Your temporary password for {exam_title}"
+    text = (
+        f"Hi {full_name},\n\n"
+        f"You have been assigned an exam: {exam_title}\n"
+        f"Temporary password: {password}\n"
+        f"Start exam: {exam_link}\n\n"
+        "This password is temporary and intended only for your use."
+    )
+    html = (
+        f"<p>Hi {full_name},</p>"
+        f"<p>You have been assigned an exam: <strong>{exam_title}</strong>.</p>"
+        f"<p><strong>Temporary password:</strong> {password}</p>"
+        f"<p><a href='{exam_link}'>Start exam</a></p>"
+        "<p>This password is temporary and intended only for your use.</p>"
+    )
+    await send_email(to_email=to_email, subject=subject, html=html, text=text)
+
+
+async def _assign_and_notify_exam_passwords(
+    *,
+    session: AsyncSession,
+    organization_id: int,
+    exam_id: int,
+    exam_title: str,
+    user_ids: list[str],
+) -> list[ExamPasswordEntry]:
     passwords_out: list[ExamPasswordEntry] = []
-    for uid in payload.allowed_users:
+    for uid in user_ids:
         try:
             user_id = int(uid)
         except (ValueError, TypeError):
             continue
         user = await user_get_by_id(session, user_id)
-        if not user:
+        if not user or user.organization_id != organization_id:
             continue
         plain = _generate_exam_password()
         hashed = hash_password(plain)
-        await repo.exam_password_upsert(session, exam.id, user_id, hashed)
+        await repo.exam_password_upsert(session, exam_id, user_id, hashed)
         passwords_out.append(ExamPasswordEntry(userId=str(user_id), password=plain))
+        try:
+            await _send_exam_password_email(
+                to_email=user.email,
+                full_name=user.name,
+                exam_id=exam_id,
+                exam_title=exam_title,
+                password=plain,
+            )
+        except Exception:
+            logger.exception("Failed sending exam password email to %s for exam %s", user.email, exam_id)
+    return passwords_out
+
+
+async def create_exam(
+    session: AsyncSession,
+    payload: ExamCreateRequest,
+    created_by_id: int | None,
+    organization_id: int,
+) -> ExamCreateResponse:
+    exam = await repo.exam_create(session, title=payload.title, organization_id=organization_id)
+    questions_data = [
+        {"question": q.question, "options": q.options, "correct": q.correct}
+        for q in payload.questions
+    ]
+    await repo.questions_create_many(session, exam.id, questions_data)
+    user_ids = set(payload.allowed_users)
+    for department in payload.allowed_departments:
+        dep_users = await get_by_department(session, organization_id=organization_id, department=department)
+        for user in dep_users:
+            user_ids.add(str(user.id))
+    passwords_out = await _assign_and_notify_exam_passwords(
+        session=session,
+        organization_id=organization_id,
+        exam_id=exam.id,
+        exam_title=exam.title,
+        user_ids=list(user_ids),
+    )
     return ExamCreateResponse(examId=str(exam.id), passwords=passwords_out)
 
 
-async def validate_exam_password(session: AsyncSession, exam_id: int, user_id: int, password: str) -> ValidatePasswordResponse:
-    exam = await repo.exam_get_by_id(session, exam_id)
+async def validate_exam_password(
+    session: AsyncSession,
+    exam_id: int,
+    user_id: int,
+    password: str,
+    organization_id: int,
+) -> ValidatePasswordResponse:
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
     if not exam:
         return ValidatePasswordResponse(valid=False, error="Exam not found")
     row = await repo.exam_password_get(session, exam_id, user_id)
@@ -59,8 +136,8 @@ async def validate_exam_password(session: AsyncSession, exam_id: int, user_id: i
     return ValidatePasswordResponse(valid=True)
 
 
-async def get_exam_questions(session: AsyncSession, exam_id: int) -> list[ExamQuestionPublic]:
-    exam = await repo.exam_get_by_id(session, exam_id)
+async def get_exam_questions(session: AsyncSession, exam_id: int, organization_id: int) -> list[ExamQuestionPublic]:
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
     if not exam:
         return []
     questions = await repo.questions_get_by_exam(session, exam_id)
@@ -74,9 +151,14 @@ async def get_exam_questions(session: AsyncSession, exam_id: int) -> list[ExamQu
     ]
 
 
-async def get_or_create_session(session: AsyncSession, exam_id: int, user_id: int) -> int | None:
+async def get_or_create_session(
+    session: AsyncSession,
+    exam_id: int,
+    user_id: int,
+    organization_id: int,
+) -> int | None:
     """Returns session id if exam exists and user has access (password already validated)."""
-    exam = await repo.exam_get_by_id(session, exam_id)
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
     if not exam:
         return None
     active = await repo.session_get_active(session, exam_id, user_id)
@@ -97,7 +179,16 @@ async def record_violation(session: AsyncSession, exam_id: int, user_id: int, re
     return updated.disqualified, updated.violation_count
 
 
-async def submit_exam(session: AsyncSession, exam_id: int, user_id: int, answers: dict[str, int]) -> SubmitExamResponse | None:
+async def submit_exam(
+    session: AsyncSession,
+    exam_id: int,
+    user_id: int,
+    answers: dict[str, int],
+    organization_id: int,
+) -> SubmitExamResponse | None:
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
+    if not exam:
+        return None
     active = await repo.session_get_active(session, exam_id, user_id)
     if not active:
         return None
@@ -112,13 +203,21 @@ async def submit_exam(session: AsyncSession, exam_id: int, user_id: int, answers
     passed = score >= 70
     await repo.session_submit(session, active.id, score, passed, answers)
     if passed:
-        exam = await repo.exam_get_by_id(session, exam_id)
         await repo.certificate_create(session, user_id, exam_id, exam.title if exam else "Exam", score)
     return SubmitExamResponse(score=score, passed=passed, totalQuestions=total, correctAnswers=correct)
 
 
-async def report_disqualification(session: AsyncSession, exam_id: int, user_id: int, reason: str) -> bool:
+async def report_disqualification(
+    session: AsyncSession,
+    exam_id: int,
+    user_id: int,
+    reason: str,
+    organization_id: int,
+) -> bool:
     """Mark session disqualified (e.g. after 3rd violation from frontend)."""
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
+    if not exam:
+        return False
     active = await repo.session_get_active(session, exam_id, user_id)
     if not active:
         return False
@@ -129,23 +228,22 @@ async def report_disqualification(session: AsyncSession, exam_id: int, user_id: 
     return True
 
 
-async def generate_exam_passwords(session: AsyncSession, exam_id: int, user_ids: list[str]) -> GeneratePasswordsResponse:
-    exam = await repo.exam_get_by_id(session, exam_id)
+async def generate_exam_passwords(
+    session: AsyncSession,
+    exam_id: int,
+    user_ids: list[str],
+    organization_id: int,
+) -> GeneratePasswordsResponse:
+    exam = await repo.exam_get_by_id(session, exam_id, organization_id=organization_id)
     if not exam:
         return GeneratePasswordsResponse(passwords=[])
-    passwords_out: list[ExamPasswordEntry] = []
-    for uid in user_ids:
-        try:
-            user_id = int(uid)
-        except (ValueError, TypeError):
-            continue
-        user = await user_get_by_id(session, user_id)
-        if not user:
-            continue
-        plain = _generate_exam_password()
-        hashed = hash_password(plain)
-        await repo.exam_password_upsert(session, exam_id, user_id, hashed)
-        passwords_out.append(ExamPasswordEntry(userId=str(user_id), password=plain))
+    passwords_out = await _assign_and_notify_exam_passwords(
+        session=session,
+        organization_id=organization_id,
+        exam_id=exam_id,
+        exam_title=exam.title,
+        user_ids=user_ids,
+    )
     return GeneratePasswordsResponse(passwords=passwords_out)
 
 

@@ -19,3 +19,7 @@ class LdapConfig(BaseModel):
     bindPassword: str = ""
     userFilter: str = "(objectClass=person)"
     useSsl: bool = False
+
+
+class SmtpTestRequest(BaseModel):
+    toEmail: str | None = None

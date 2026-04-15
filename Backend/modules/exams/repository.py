@@ -7,13 +7,26 @@ from modules.exams.models import Exam, ExamQuestion, ExamPassword, ExamSession, 
 
 
 # ----- Exam -----
-async def exam_get_by_id(session: AsyncSession, exam_id: int) -> Exam | None:
-    result = await session.execute(select(Exam).where(Exam.id == exam_id))
+async def exam_get_by_id(session: AsyncSession, exam_id: int, organization_id: int) -> Exam | None:
+    result = await session.execute(
+        select(Exam).where(Exam.id == exam_id, Exam.organization_id == organization_id)
+    )
     return result.scalar_one_or_none()
 
 
-async def exam_create(session: AsyncSession, title: str, duration_minutes: int = 30, created_by_id: int | None = None) -> Exam:
-    exam = Exam(title=title, duration_minutes=duration_minutes, created_by_id=created_by_id)
+async def exam_create(
+    session: AsyncSession,
+    title: str,
+    organization_id: int,
+    duration_minutes: int = 30,
+    created_by_id: int | None = None,
+) -> Exam:
+    exam = Exam(
+        title=title,
+        organization_id=organization_id,
+        duration_minutes=duration_minutes,
+        created_by_id=created_by_id,
+    )
     session.add(exam)
     await session.flush()
     await session.refresh(exam)

@@ -23,4 +23,15 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  // shadcn/ui & variant helpers: CVA + sub-exports trigger fast-refresh warnings
+  {
+    files: [
+      "src/components/ui/**/*.{ts,tsx}",
+      "src/components/CyberButton.tsx",
+      "src/contexts/PortalContext.tsx",
+    ],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );

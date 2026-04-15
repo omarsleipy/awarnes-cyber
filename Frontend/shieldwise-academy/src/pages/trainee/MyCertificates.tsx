@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { CyberButton } from "@/components/CyberButton";
 import { Badge } from "@/components/ui/badge";
 import { Award, Download, Calendar, Shield } from "lucide-react";
-import { api } from "@/services/api";
+import { api, type Certificate } from "@/services/api";
 
 const MyCertificates = () => {
-  const [certificates, setCertificates] = useState<any[]>([]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
 
   useEffect(() => {
     api.getCertificates().then(setCertificates);

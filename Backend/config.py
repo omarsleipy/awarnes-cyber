@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "noreply@corp.com"
     SMTP_FROM_NAME: str = "CyberAware Platform"
     SMTP_USE_TLS: bool = True
+    SMTP_MOCK_MODE: bool = True
+
+    # App URLs used in notification/tracking emails
+    APP_BASE_URL: str = "http://localhost:8000"
+    FRONTEND_BASE_URL: str = "http://localhost:8080"
 
     # LDAP (stub integration)
     LDAP_SERVER: str = ""

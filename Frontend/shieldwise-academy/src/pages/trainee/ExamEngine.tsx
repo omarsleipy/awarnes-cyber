@@ -80,18 +80,6 @@ const ExamEngine = () => {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [phase, examId, toast]);
 
-  // ─── Timer ───
-  useEffect(() => {
-    if (phase !== "active" || timeLeft <= 0) return;
-    const t = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) { handleSubmit(); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [phase]);
-
   const handlePasswordSubmit = async () => {
     const res = await api.validateExamPassword(examId || "", password);
     if (res.valid) {
@@ -107,11 +95,27 @@ const ExamEngine = () => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     const res = await api.submitExam(examId || "", answers);
     setResult(res);
     setPhase("submitted");
-  };
+  }, [examId, answers]);
+
+  // ─── Timer ───
+  useEffect(() => {
+    if (phase !== "active") return;
+    const id = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 0) return 0;
+        if (prev === 1) {
+          void handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase, handleSubmit]);
 
   const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 

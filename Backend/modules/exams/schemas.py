@@ -12,6 +12,7 @@ class ExamCreateRequest(BaseModel):
     title: str
     questions: list[QuestionOption]
     allowed_users: list[str]  # user ids
+    allowed_departments: list[str] = []
 
 
 class ExamPasswordEntry(BaseModel):

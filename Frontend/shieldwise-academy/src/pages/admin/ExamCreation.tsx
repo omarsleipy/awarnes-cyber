@@ -26,8 +26,8 @@ const ExamCreation = () => {
   const addQuestion = () => setQuestions((p) => [...p, { question: "", options: ["", "", "", ""], correct: 0 }]);
   const removeQuestion = (i: number) => setQuestions((p) => p.filter((_, idx) => idx !== i));
 
-  const updateQuestion = (i: number, field: string, value: any) => {
-    setQuestions((prev) => prev.map((q, idx) => idx === i ? { ...q, [field]: value } : q));
+  const updateQuestion = (i: number, field: keyof Question, value: Question[keyof Question]) => {
+    setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, [field]: value } : q)));
   };
 
   const updateOption = (qi: number, oi: number, value: string) => {

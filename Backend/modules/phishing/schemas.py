@@ -19,3 +19,8 @@ class CampaignCreate(BaseModel):
     name: str | None = None
     template: str = ""
     targetDept: str = "All"
+    destinationUrl: str = "https://example.com"
+
+
+class CampaignSendRequest(BaseModel):
+    destinationUrl: str | None = None

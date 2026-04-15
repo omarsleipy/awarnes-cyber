@@ -12,6 +12,7 @@ class Exam(Base):
     __tablename__ = "exams"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True, default=1)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

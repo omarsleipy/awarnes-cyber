@@ -67,8 +67,8 @@ const Assessments = () => {
   // --- Admin: Exam creation helpers ---
   const addQuestion = () => setNewQuestions((p) => [...p, { question: "", options: ["", "", "", ""], correct: 0 }]);
   const removeQuestion = (i: number) => setNewQuestions((p) => p.filter((_, idx) => idx !== i));
-  const updateQuestion = (i: number, field: string, value: any) => {
-    setNewQuestions((prev) => prev.map((q, idx) => idx === i ? { ...q, [field]: value } : q));
+  const updateQuestion = (i: number, field: keyof Question, value: Question[keyof Question]) => {
+    setNewQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, [field]: value } : q)));
   };
   const updateOption = (qi: number, oi: number, value: string) => {
     setNewQuestions((prev) => prev.map((q, idx) => idx === qi ? { ...q, options: q.options.map((o, j) => j === oi ? value : o) } : q));

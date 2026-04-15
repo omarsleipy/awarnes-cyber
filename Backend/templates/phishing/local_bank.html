@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #111827;">
+    <p>Dear {{ full_name }},</p>
+    <p>
+      Your Local Bank account needs verification to prevent temporary restrictions.
+    </p>
+    <p>
+      <a href="{{ click_url }}" style="background:#b91c1c;color:#fff;padding:10px 14px;border-radius:4px;text-decoration:none;">
+        Confirm Account
+      </a>
+    </p>
+    <p style="font-size: 12px; color: #6b7280;">
+      Message ID: {{ campaign_name }}
+    </p>
+    <img src="{{ pixel_url }}" width="1" height="1" alt="" style="display:block;" />
+  </body>
+</html>

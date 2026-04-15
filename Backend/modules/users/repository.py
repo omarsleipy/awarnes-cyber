@@ -11,18 +11,46 @@ async def get_by_id(session: AsyncSession, user_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def get_by_email(session: AsyncSession, email: str) -> User | None:
-    result = await session.execute(select(User).where(User.email == email))
+async def get_by_email(session: AsyncSession, email: str, organization_id: int | None = None) -> User | None:
+    stmt = select(User).where(User.email == email)
+    if organization_id is not None:
+        stmt = stmt.where(User.organization_id == organization_id)
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
 
-async def get_all(session: AsyncSession, skip: int = 0, limit: int = 500) -> list[User]:
-    result = await session.execute(select(User).offset(skip).limit(limit))
+async def get_all(session: AsyncSession, organization_id: int, skip: int = 0, limit: int = 500) -> list[User]:
+    result = await session.execute(
+        select(User).where(User.organization_id == organization_id).offset(skip).limit(limit)
+    )
     return list(result.scalars().all())
 
 
-async def create(session: AsyncSession, email: str, hashed_password: str, name: str, role: str = "trainee", department: str = "") -> User:
+async def get_by_department(
+    session: AsyncSession,
+    organization_id: int,
+    department: str,
+    limit: int = 2000,
+) -> list[User]:
+    result = await session.execute(
+        select(User)
+        .where(User.organization_id == organization_id, User.department == department)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def create(
+    session: AsyncSession,
+    email: str,
+    hashed_password: str,
+    name: str,
+    role: str = "trainee",
+    department: str = "",
+    organization_id: int = 1,
+) -> User:
     user = User(
+        organization_id=organization_id,
         email=email,
         hashed_password=hashed_password,
         name=name,

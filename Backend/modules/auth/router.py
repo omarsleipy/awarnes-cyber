@@ -11,5 +11,5 @@ router = APIRouter()
 
 @router.post("/login")
 async def auth_login(body: LoginRequest, session: AsyncSession = Depends(get_db)):
-    result = await do_login(session, body.email, body.password)
+    result = await do_login(session, body.email, body.password, organization_id=body.organizationId)
     return result

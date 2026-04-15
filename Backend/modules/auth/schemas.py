@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    organizationId: str | None = None
 
 
 class LoginSuccessUser(BaseModel):
