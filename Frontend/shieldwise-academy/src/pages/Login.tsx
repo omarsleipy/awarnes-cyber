@@ -33,7 +33,14 @@ const Login = () => {
       toast({ title: "Welcome back!", description: `Logged in as ${res.user.name}` });
       navigate("/");
     } else {
-      setError("Invalid email or password. Try admin@corp.com or john@corp.com");
+      const detail =
+        "error" in res && typeof (res as { error?: string }).error === "string"
+          ? (res as { error: string }).error
+          : "";
+      setError(
+        detail ||
+          "Invalid email or password. Use password: password — or check API URL (VITE_API_URL) if deployed."
+      );
     }
   };
 
@@ -50,6 +57,12 @@ const Login = () => {
       setIsAuthenticated(true);
       toast({ title: "Welcome back!", description: `Logged in as ${res.user.name}` });
       navigate("/");
+    } else {
+      const detail =
+        "error" in res && typeof (res as { error?: string }).error === "string"
+          ? (res as { error: string }).error
+          : "";
+      setError(detail || "Quick login failed. Is the backend running and reachable?");
     }
   };
 

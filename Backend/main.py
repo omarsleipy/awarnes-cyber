@@ -50,24 +50,30 @@ async def _seed() -> None:
             session.add(org)
             await session.flush()
 
-        r = await session.execute(select(User).limit(1))
-        if r.scalar_one_or_none() is None:
-            for email, name, role in (
-                ("admin@corp.com", "Admin User", "admin"),
-                ("john@corp.com", "John Doe", "trainee"),
-                ("root@cyberaware.local", "Super Admin", "super_admin"),
-            ):
+        # Ensure demo accounts exist even if the DB already had other users (seed used to skip entirely).
+        demo_users = (
+            ("admin@corp.com", "Admin User", "admin", "IT"),
+            ("john@corp.com", "John Doe", "trainee", "Finance"),
+            ("root@cyberaware.local", "Super Admin", "super_admin", "Finance"),
+        )
+        for email, name, role, department in demo_users:
+            exists = (
+                await session.execute(
+                    select(User).where(User.email == email, User.organization_id == org.id)
+                )
+            ).scalar_one_or_none()
+            if exists is None:
                 session.add(
                     User(
                         organization_id=org.id,
                         email=email,
                         name=name,
                         role=role,
-                        department="IT" if role == "admin" else "Finance",
+                        department=department,
                         hashed_password=hash_password("password"),
                     )
                 )
-            await session.commit()
+        await session.commit()
 
         r2 = await session.execute(select(PhishingCampaign).limit(1))
         if r2.scalar_one_or_none() is None:
