@@ -51,12 +51,14 @@ async def _seed() -> None:
             await session.flush()
 
         # Ensure demo accounts exist even if the DB already had other users (seed used to skip entirely).
+        # (email, display_name, role, department, plain_password)
         demo_users = (
-            ("admin@corp.com", "Admin User", "admin", "IT"),
-            ("john@corp.com", "John Doe", "trainee", "Finance"),
-            ("root@cyberaware.local", "Super Admin", "super_admin", "Finance"),
+            ("admin@corp.com", "Admin User", "admin", "IT", "password"),
+            ("john@corp.com", "John Doe", "trainee", "Finance", "password"),
+            ("root@cyberaware.local", "Super Admin", "super_admin", "Finance", "password"),
+            ("admin@cyberaware.com", "Platform Super Admin", "super_admin", "IT", "Admin@123"),
         )
-        for email, name, role, department in demo_users:
+        for email, name, role, department, plain_password in demo_users:
             exists = (
                 await session.execute(
                     select(User).where(User.email == email, User.organization_id == org.id)
@@ -70,7 +72,7 @@ async def _seed() -> None:
                         name=name,
                         role=role,
                         department=department,
-                        hashed_password=hash_password("password"),
+                        hashed_password=hash_password(plain_password),
                     )
                 )
         await session.commit()

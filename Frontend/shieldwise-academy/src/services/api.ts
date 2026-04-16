@@ -1,9 +1,60 @@
 // API Service Layer — Backend integration with fallback to mock data
+// All HTTP calls use import.meta.env.VITE_API_URL only (see getApiBaseUrl). No deployment-provider coupling.
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000/api";
+/** Local dev default when VITE_API_URL is unset (npm run dev only). Production builds must set VITE_API_URL. */
+const LOCAL_DEV_API_DEFAULT = "http://localhost:8000/api";
+
 const TOKEN_KEY = "cyberaware_token";
+
+/**
+ * Public API base URL (must include trailing path /api). Single source of truth for the frontend.
+ * - Production: VITE_API_URL is required at build time.
+ * - Development: falls back to LOCAL_DEV_API_DEFAULT if unset.
+ */
+export function getApiBaseUrl(): string {
+  const v = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (v) return v;
+  if (import.meta.env.DEV) return LOCAL_DEV_API_DEFAULT;
+  return "";
+}
+
+/** Turn generic fetch failures into actionable hints in production. */
+function clarifyFetchError(message: string): string {
+  const m = message.toLowerCase();
+  const looksLikeNetwork =
+    m === "failed to fetch" ||
+    m === "load failed" ||
+    m.includes("networkerror") ||
+    m.includes("network request failed");
+  if (!looksLikeNetwork) return message;
+
+  const explicit = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (import.meta.env.PROD) {
+    if (!explicit) {
+      return "VITE_API_URL is missing. Add it under Vercel → Settings → Environment Variables (e.g. https://your-api.example.com/api) and redeploy.";
+    }
+    if (explicit.includes("localhost") || explicit.includes("127.0.0.1")) {
+      return "VITE_API_URL points to localhost, which will not work for visitors. Use your public API HTTPS URL ending with /api.";
+    }
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && explicit.startsWith("http://")) {
+      return "Mixed content blocked: the site is HTTPS but VITE_API_URL uses HTTP. Use https:// for your API URL.";
+    }
+    return `Cannot reach ${explicit}. Confirm the API is up, uses HTTPS if the app is HTTPS, and backend CORS_ORIGINS includes this site (${typeof window !== "undefined" ? window.location.origin : ""}).`;
+  }
+  return message;
+}
+
+function requireApiBase(): string {
+  const base = getApiBaseUrl();
+  if (!base) {
+    throw new Error(
+      "VITE_API_URL is not set. For production builds, set VITE_API_URL to your API base URL (e.g. https://api.example.com/api) in your host's environment and rebuild."
+    );
+  }
+  return base;
+}
 
 function getToken(): string | null {
   return typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
@@ -26,7 +77,8 @@ async function request<T>(
   };
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, {
+  const base = requireApiBase();
+  const res = await fetch(`${base}${path}`, {
     ...rest,
     headers,
     body: body !== undefined ? JSON.stringify(body) : rest.body,
@@ -113,7 +165,7 @@ export const mockLdapConfig = {
   useSsl: false,
 };
 
-// ─── API Functions (real backend when API_BASE is set) ─────────
+// ─── API Functions (all use getApiBaseUrl via request / requireApiBase) ─────────
 
 export const api = {
   // Auth
@@ -129,7 +181,10 @@ export const api = {
       }
       return res as { success: false; error: string };
     } catch (e) {
-      return { success: false as const, error: (e as Error).message || "Invalid credentials" };
+      return {
+        success: false as const,
+        error: clarifyFetchError((e as Error).message || "Invalid credentials"),
+      };
     }
   },
 
@@ -232,7 +287,8 @@ export const api = {
   },
   downloadCertificatePdf: async (certificateId: string) => {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/exams/certificates/${certificateId}/pdf`, {
+    const base = requireApiBase();
+    const res = await fetch(`${base}/exams/certificates/${certificateId}/pdf`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) {

@@ -39,7 +39,7 @@ const Login = () => {
           : "";
       setError(
         detail ||
-          "Invalid email or password. Use password: password — or check API URL (VITE_API_URL) if deployed."
+          "Invalid email or password. Demo: admin@corp.com / password. Super admin: admin@cyberaware.com / Admin@123. Ensure VITE_API_URL is set when deployed."
       );
     }
   };
