@@ -1,4 +1,5 @@
-# Isolated PostgreSQL for awarnes-cyber (host port 5433 → container 5432).
+# Isolated PostgreSQL for awarnes-cyber (host port 35433 → container 5432).
+# Use a high port if Windows blocks 5433/5434 (Hyper-V excluded ranges).
 services:
   db:
     image: postgres:16-alpine
@@ -9,7 +10,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cyberaware
     ports:
-      - "5433:5432"
+      - "35433:5432"
     volumes:
       - awarnes_cyber_pgdata:/var/lib/postgresql/data
     healthcheck:
