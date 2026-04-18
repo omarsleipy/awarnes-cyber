@@ -21,10 +21,9 @@ const clickRateData = [
 ];
 
 const templates = [
-  { id: "password-reset", name: "Password Reset", preview: "Your corporate password expires in 24 hours. Click here to reset..." },
-  { id: "it-alert", name: "IT Security Alert", preview: "Unusual login detected on your account. Verify your identity..." },
-  { id: "exec-request", name: "Executive Request", preview: "Hi, I need you to purchase gift cards urgently. Reply ASAP..." },
-  { id: "benefits", name: "Benefits Notice", preview: "Open enrollment is ending. Update your benefits selections now..." },
+  { id: "outlook_login", name: "Outlook Login", preview: "Microsoft-style sign-in review — primary CTA link + tracking pixel." },
+  { id: "google_security_alert", name: "Google Security Alert", preview: "Google Workspace security verification — link + pixel." },
+  { id: "hr_policy", name: "Internal HR Policy", preview: "HR memo with attachment-style pixel + optional simulated credential form." },
 ];
 
 const CreateCampaign = () => {

@@ -315,6 +315,30 @@ export const api = {
     }
   },
 
+  // Monitoring (org-scoped; admin only)
+  getMonitoringActivities: async () => {
+    try {
+      return await request<
+        {
+          id: string;
+          organization_id: string | null;
+          user_id: string | null;
+          activity_type: string;
+          severity: string;
+          title: string;
+          details: string | null;
+          ip_address: string | null;
+          exam_id: number | null;
+          phishing_campaign_id: string | null;
+          phishing_recipient_id: string | null;
+          created_at: string;
+        }[]
+      >("/monitoring/activities");
+    } catch {
+      return [];
+    }
+  },
+
   // Phishing
   getCampaigns: async () => {
     try {
