@@ -1,0 +1,14 @@
+[run]
+source =
+    .
+omit =
+    tests/*
+    alembic/*
+    **/__pycache__/*
+branch = false
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError

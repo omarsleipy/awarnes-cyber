@@ -13,6 +13,7 @@ class ExamCreateRequest(BaseModel):
     questions: list[QuestionOption]
     allowed_users: list[str]  # user ids
     allowed_departments: list[str] = []
+    certificateEnabled: bool = True
 
 
 class ExamPasswordEntry(BaseModel):
@@ -84,3 +85,6 @@ class CertificateResponse(BaseModel):
     date: str
     status: str
     expiresAt: str
+    kind: str = "exam"  # exam | course
+    courseId: str | None = None
+    templateKey: str = "default"

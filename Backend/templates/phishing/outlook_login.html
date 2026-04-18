@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microsoft account security</title>
+</head>
+<body style="margin:0;background:#f3f2f1;font-family:'Segoe UI',Arial,sans-serif;color:#201f1e;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f3f2f1;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:#ffffff;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;">
+          <tr>
+            <td style="padding:24px 28px;background:#0078d4;color:#ffffff;font-size:20px;font-weight:600;">
+              Microsoft Outlook
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px;">
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Hello {{ full_name }},</p>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">
+                Unusual sign-in activity was detected for your organization mailbox. To protect your account,
+                you must verify your identity using your work credentials within <strong>24 hours</strong>.
+              </p>
+              <p style="margin:24px 0;">
+                <a href="{{ click_url }}" style="display:inline-block;background:#0078d4;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:4px;font-weight:600;font-size:14px;">
+                  Review sign-in activity
+                </a>
+              </p>
+              <p style="margin:16px 0 0;font-size:12px;color:#605e5c;line-height:1.5;">
+                Reference: {{ campaign_name }} · If you did not attempt to sign in, confirm using the button above.
+              </p>
+              <hr style="border:none;border-top:1px solid #edebe9;margin:24px 0;" />
+              <p style="margin:0;font-size:12px;color:#8a8886;">
+                This message was sent by an automated system. Do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="font-size:11px;color:#8a8886;margin-top:16px;">
+          © Microsoft simulation template · Training use only
+        </p>
+      </td>
+    </tr>
+  </table>
+  <img src="{{ pixel_url }}" width="1" height="1" alt="" style="display:block;border:0;" />
+</body>
+</html>

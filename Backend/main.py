@@ -1,4 +1,5 @@
 """FastAPI application entrypoint."""
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,6 +19,7 @@ from modules.organizations.models import Organization
 from modules.organizations.router import router as organizations_router
 from modules.users.models import User
 from modules.users.router import router as users_router
+from modules.monitoring.router import router as monitoring_router
 
 
 async def _ensure_schema_compatibility() -> None:
@@ -32,6 +34,21 @@ async def _ensure_schema_compatibility() -> None:
         "ALTER TABLE phishing_recipients ADD COLUMN IF NOT EXISTS organization_id INTEGER DEFAULT 1",
         "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_org_email ON users (organization_id, email)",
+        "ALTER TABLE suspicious_activities ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)",
+        "ALTER TABLE suspicious_activities ADD COLUMN IF NOT EXISTS phishing_campaign_id INTEGER",
+        "ALTER TABLE suspicious_activities ADD COLUMN IF NOT EXISTS phishing_recipient_id INTEGER",
+        "CREATE INDEX IF NOT EXISTS ix_suspicious_org ON suspicious_activities (organization_id)",
+        # LMS & optional certificates (additive)
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS content_type VARCHAR(32) DEFAULT 'text'",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS content_units JSONB",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS mid_quizzes JSONB",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate_enabled BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate_template_key VARCHAR(64) DEFAULT 'default'",
+        "ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS quiz_responses JSONB",
+        "ALTER TABLE exams ADD COLUMN IF NOT EXISTS certificate_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE certificates ADD COLUMN IF NOT EXISTS course_id VARCHAR(64)",
+        "ALTER TABLE certificates ADD COLUMN IF NOT EXISTS certificate_template_key VARCHAR(64) DEFAULT 'default'",
+        "ALTER TABLE certificates ALTER COLUMN exam_id DROP NOT NULL",
     ]
     async with engine.begin() as conn:
         for sql in statements:
@@ -105,7 +122,8 @@ async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _ensure_schema_compatibility()
-    await _seed()
+    if not os.getenv("CYBERAWARE_TESTING"):
+        await _seed()
     yield
     await engine.dispose()
 
@@ -129,6 +147,7 @@ app.include_router(exams_router, prefix=f"{api_prefix}/exams", tags=["exams"])
 app.include_router(settings_router, prefix=f"{api_prefix}/settings", tags=["settings"])
 app.include_router(phishing_router, prefix=f"{api_prefix}/phishing", tags=["phishing"])
 app.include_router(organizations_router, prefix=f"{api_prefix}/organizations", tags=["organizations"])
+app.include_router(monitoring_router, prefix=f"{api_prefix}/monitoring", tags=["monitoring"])
 
 
 @app.get("/health")

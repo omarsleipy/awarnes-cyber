@@ -8,6 +8,10 @@ SETTINGS_SMTP = "smtp_config"
 SETTINGS_LDAP = "ldap_config"
 
 
+def org_smtp_key(organization_id: int) -> str:
+    return f"smtp_config_org_{organization_id}"
+
+
 def _default_smtp() -> SmtpConfig:
     s = get_settings()
     return SmtpConfig(host=s.SMTP_HOST, port=s.SMTP_PORT, username=s.SMTP_USERNAME, password=s.SMTP_PASSWORD, fromName=s.SMTP_FROM_NAME, fromEmail=s.SMTP_FROM_EMAIL)
@@ -31,6 +35,21 @@ async def get_smtp(session: AsyncSession) -> SmtpConfig:
 
 async def save_smtp(session: AsyncSession, config: SmtpConfig) -> None:
     await repo.set_val(session, SETTINGS_SMTP, config.model_dump_json())
+
+
+async def get_smtp_for_organization(session: AsyncSession, organization_id: int) -> SmtpConfig:
+    """SMTP for outbound mail scoped to an organization (phishing, notifications). Falls back to global DB then env."""
+    raw = await repo.get(session, org_smtp_key(organization_id))
+    if raw:
+        try:
+            return SmtpConfig(**json.loads(raw))
+        except Exception:
+            pass
+    return await get_smtp(session)
+
+
+async def save_smtp_for_organization(session: AsyncSession, organization_id: int, config: SmtpConfig) -> None:
+    await repo.set_val(session, org_smtp_key(organization_id), config.model_dump_json())
 
 
 async def get_ldap(session: AsyncSession) -> LdapConfig:

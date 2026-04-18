@@ -12,6 +12,13 @@ async def list_courses(session: AsyncSession, organization_id: int) -> list[Cour
     return list(r.scalars().all())
 
 
+async def get_course(session: AsyncSession, organization_id: int, course_id: str) -> Course | None:
+    r = await session.execute(
+        select(Course).where(Course.organization_id == organization_id, Course.id == course_id)
+    )
+    return r.scalar_one_or_none()
+
+
 async def get_progress(
     session: AsyncSession,
     organization_id: int,
@@ -28,24 +35,43 @@ async def get_progress(
     return r.scalar_one_or_none()
 
 
+def _merge_quiz_responses(existing: dict | None, patch: dict | None) -> dict | None:
+    if patch is None:
+        return existing
+    base = dict(existing or {})
+    for k, v in patch.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            base[k] = {**base[k], **v}
+        else:
+            base[k] = v
+    return base
+
+
 async def upsert_progress(
     session: AsyncSession,
     organization_id: int,
     user_id: int,
     course_id: str,
     viewed_slides: int,
+    *,
+    quiz_responses_patch: dict | None = None,
 ) -> UserCourseProgress:
     row = await get_progress(session, organization_id, user_id, course_id)
     if row:
         row.viewed_slides = viewed_slides
+        merged = _merge_quiz_responses(row.quiz_responses, quiz_responses_patch)
+        if merged is not None:
+            row.quiz_responses = merged
         await session.flush()
         await session.refresh(row)
         return row
+    merged_new = _merge_quiz_responses(None, quiz_responses_patch)
     row = UserCourseProgress(
         organization_id=organization_id,
         user_id=user_id,
         course_id=course_id,
         viewed_slides=viewed_slides,
+        quiz_responses=merged_new if merged_new is not None else {},
     )
     session.add(row)
     await session.flush()

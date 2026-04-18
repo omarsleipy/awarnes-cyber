@@ -20,12 +20,15 @@ async def exam_create(
     organization_id: int,
     duration_minutes: int = 30,
     created_by_id: int | None = None,
+    *,
+    certificate_enabled: bool = True,
 ) -> Exam:
     exam = Exam(
         title=title,
         organization_id=organization_id,
         duration_minutes=duration_minutes,
         created_by_id=created_by_id,
+        certificate_enabled=certificate_enabled,
     )
     session.add(exam)
     await session.flush()
@@ -137,13 +140,61 @@ async def session_get_by_id(session: AsyncSession, session_id: int) -> ExamSessi
 
 
 # ----- Certificate -----
-async def certificate_create(session: AsyncSession, user_id: int, exam_id: int, exam_title: str, score: int) -> Certificate:
+async def certificate_create_for_exam(
+    session: AsyncSession,
+    user_id: int,
+    exam_id: int,
+    exam_title: str,
+    score: int,
+    *,
+    template_key: str = "default",
+) -> Certificate:
     expires_at = datetime.utcnow() + timedelta(days=365)
-    cert = Certificate(user_id=user_id, exam_id=exam_id, exam_title=exam_title, score=score, expires_at=expires_at)
+    cert = Certificate(
+        user_id=user_id,
+        exam_id=exam_id,
+        course_id=None,
+        exam_title=exam_title,
+        score=score,
+        expires_at=expires_at,
+        certificate_template_key=template_key,
+    )
     session.add(cert)
     await session.flush()
     await session.refresh(cert)
     return cert
+
+
+async def certificate_create_for_course(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    course_id: str,
+    course_title: str,
+    score: int,
+    template_key: str,
+) -> Certificate:
+    expires_at = datetime.utcnow() + timedelta(days=365)
+    cert = Certificate(
+        user_id=user_id,
+        exam_id=None,
+        course_id=course_id,
+        exam_title=course_title,
+        score=score,
+        expires_at=expires_at,
+        certificate_template_key=template_key,
+    )
+    session.add(cert)
+    await session.flush()
+    await session.refresh(cert)
+    return cert
+
+
+async def course_certificate_exists(session: AsyncSession, user_id: int, course_id: str) -> bool:
+    result = await session.execute(
+        select(Certificate.id).where(Certificate.user_id == user_id, Certificate.course_id == course_id).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def certificates_get_by_user(session: AsyncSession, user_id: int) -> list[Certificate]:

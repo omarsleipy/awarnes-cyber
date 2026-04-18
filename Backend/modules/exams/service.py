@@ -5,6 +5,7 @@ import string
 from io import BytesIO
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
 from reportlab.pdfgen import canvas
 
@@ -100,7 +101,12 @@ async def create_exam(
     created_by_id: int | None,
     organization_id: int,
 ) -> ExamCreateResponse:
-    exam = await repo.exam_create(session, title=payload.title, organization_id=organization_id)
+    exam = await repo.exam_create(
+        session,
+        title=payload.title,
+        organization_id=organization_id,
+        certificate_enabled=payload.certificateEnabled,
+    )
     questions_data = [
         {"question": q.question, "options": q.options, "correct": q.correct}
         for q in payload.questions
@@ -214,8 +220,8 @@ async def submit_exam(
     score = round((correct / total) * 100) if total else 0
     passed = score >= 70
     await repo.session_submit(session, active.id, score, passed, answers)
-    if passed:
-        await repo.certificate_create(session, user_id, exam_id, exam.title if exam else "Exam", score)
+    if passed and getattr(exam, "certificate_enabled", True):
+        await repo.certificate_create_for_exam(session, user_id, exam_id, exam.title if exam else "Exam", score)
     return SubmitExamResponse(score=score, passed=passed, totalQuestions=total, correctAnswers=correct)
 
 
@@ -261,17 +267,24 @@ async def generate_exam_passwords(
 
 async def get_certificates_for_user(session: AsyncSession, user_id: int) -> list[CertificateResponse]:
     certs = await repo.certificates_get_by_user(session, user_id)
-    return [
-        CertificateResponse(
-            id=str(c.id),
-            examTitle=c.exam_title,
-            score=c.score,
-            date=c.issued_at.strftime("%Y-%m-%d"),
-            status=c.status,
-            expiresAt=c.expires_at.strftime("%Y-%m-%d"),
+    out: list[CertificateResponse] = []
+    for c in certs:
+        kind = "course" if c.course_id else "exam"
+        tk = getattr(c, "certificate_template_key", None) or "default"
+        out.append(
+            CertificateResponse(
+                id=str(c.id),
+                examTitle=c.exam_title,
+                score=c.score,
+                date=c.issued_at.strftime("%Y-%m-%d"),
+                status=c.status,
+                expiresAt=c.expires_at.strftime("%Y-%m-%d"),
+                kind=kind,
+                courseId=c.course_id,
+                templateKey=tk,
+            )
         )
-        for c in certs
-    ]
+    return out
 
 
 async def generate_certificate_pdf(
@@ -289,9 +302,12 @@ async def generate_certificate_pdf(
     pdf = canvas.Canvas(buf, pagesize=LETTER)
     width, height = LETTER
 
+    tmpl = getattr(cert, "certificate_template_key", None) or "default"
+    pdf.setFillColor(colors.HexColor("#355C7D") if tmpl == "brand_a" else colors.black)
     pdf.setFont("Helvetica-Bold", 28)
     pdf.drawCentredString(width / 2, height - 130, "Certificate of Completion")
 
+    pdf.setFillColor(colors.black)
     pdf.setFont("Helvetica", 13)
     pdf.drawCentredString(width / 2, height - 180, "This certifies that")
 
@@ -299,7 +315,8 @@ async def generate_certificate_pdf(
     pdf.drawCentredString(width / 2, height - 220, full_name)
 
     pdf.setFont("Helvetica", 13)
-    pdf.drawCentredString(width / 2, height - 255, "has successfully passed")
+    subtitle = "has successfully completed" if cert.course_id else "has successfully passed"
+    pdf.drawCentredString(width / 2, height - 255, subtitle)
 
     pdf.setFont("Helvetica-Bold", 18)
     pdf.drawCentredString(width / 2, height - 290, cert.exam_title)
