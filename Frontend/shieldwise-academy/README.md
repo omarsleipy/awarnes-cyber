@@ -60,9 +60,29 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Environment variables (API URL)
+
+This app calls the FastAPI backend using **`VITE_API_URL`**. It must include the **`/api`** prefix (same as `Backend/main.py`).
+
+| Environment | What to set |
+|-------------|-------------|
+| **Local `npm run dev`** | Optional if unset (defaults to `http://localhost:8000/api`). Or copy `.env.example` → `.env.local` and adjust. |
+| **`npm run build` / Vercel** | **Required.** Set `VITE_API_URL` to your public API, e.g. `https://your-backend.example.com/api`. |
+
+### Deploy on Vercel
+
+1. In the Vercel project, set **Root Directory** to `Frontend/shieldwise-academy` (monorepo).
+2. **Settings → Environment Variables:** add **`VITE_API_URL`** for **Production** and **Preview** (use your real HTTPS API URL ending in `/api`).
+3. **Redeploy** after any change — Vite inlines `VITE_*` at build time.
+4. On the **backend** host, set **`CORS_ORIGINS`** to include your frontend origin (e.g. `https://your-app.vercel.app`).
+
+If the login screen shows *“VITE_API_URL is not set”*, the production build did not receive that variable — add it in Vercel and redeploy.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+
+For **Vercel + this repo**, follow the steps above after connecting the Git repository.
 
 ## Can I connect a custom domain to my Lovable project?
 
