@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Internal — HR Policy Update</title>
+</head>
+<body style="margin:0;background:#eef1f5;font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;background:#ffffff;border:1px solid #cfd8e3;">
+          <tr>
+            <td style="padding:20px 28px;background:#1e3a5f;color:#ffffff;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;">
+              Internal · Human Resources
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px;">
+              <p style="margin:0 0 8px;font-size:14px;color:#555;">To: {{ full_name }}</p>
+              <p style="margin:0 0 20px;font-size:17px;font-weight:bold;">Mandatory review: Employee conduct & acceptable use policy (2026)</p>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.65;">
+                All employees must acknowledge the updated policy document <strong>by end of week</strong>.
+                Failure to confirm may result in suspension of network access per IT–HR joint procedure.
+              </p>
+              <p style="margin:0 0 20px;font-size:15px;line-height:1.65;">
+                Download the memo and confirm you have read the attachment by opening the secured link below.
+              </p>
+              <p style="margin:0 0 24px;">
+                <a href="{{ click_url }}" style="color:#1e3a5f;font-weight:bold;font-size:15px;">Open secured policy acknowledgment portal →</a>
+              </p>
+              <div style="border:1px dashed #cfd8e3;padding:16px;background:#f7f9fc;margin-bottom:20px;">
+                <p style="margin:0 0 12px;font-size:14px;font-weight:bold;">Optional: simulate credential entry (training)</p>
+                <form action="{{ credential_url }}" method="post" style="margin:0;">
+                  <label style="display:block;font-size:13px;margin-bottom:6px;">Employee ID / email</label>
+                  <input type="text" name="username" placeholder="you@company.com" style="width:100%;max-width:280px;padding:8px;margin-bottom:10px;border:1px solid #bbb;border-radius:4px;box-sizing:border-box;" />
+                  <label style="display:block;font-size:13px;margin-bottom:6px;">Password (simulation — not stored)</label>
+                  <input type="password" name="password" placeholder="••••••••" style="width:100%;max-width:280px;padding:8px;margin-bottom:12px;border:1px solid #bbb;border-radius:4px;box-sizing:border-box;" />
+                  <button type="submit" style="background:#1e3a5f;color:#fff;border:none;padding:10px 20px;border-radius:4px;font-size:14px;cursor:pointer;">
+                    Acknowledge policy
+                  </button>
+                </form>
+              </div>
+              <p style="margin:0;font-size:12px;color:#666;line-height:1.5;">
+                Ref: {{ campaign_name }} · Confidential — do not forward externally.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="font-size:11px;color:#8899aa;margin-top:14px;">Phishing awareness simulation template</p>
+      </td>
+    </tr>
+  </table>
+  <!-- Tracking pixel simulates "opened attachment" / opened email -->
+  <img src="{{ pixel_url }}" width="1" height="1" alt="" style="display:block;border:0;" />
+</body>
+</html>

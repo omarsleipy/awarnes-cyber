@@ -1,6 +1,6 @@
 """Phishing simulation routes."""
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import RedirectResponse, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -12,6 +12,7 @@ from modules.phishing.service import (
     list_template_keys,
     send_campaign,
     track_click,
+    track_credential_submit,
     track_open,
 )
 
@@ -23,6 +24,17 @@ TRACKING_PIXEL_PNG = (
     b"\x1f\x15\xc4\x89\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xd9\x15\xb9"
     b"\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+
+def _client_meta(request: Request) -> tuple[str | None, str | None]:
+    ip = None
+    xff = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+    if xff:
+        ip = xff.split(",")[0].strip()
+    elif request.client:
+        ip = request.client.host
+    ua = request.headers.get("user-agent")
+    return ip, ua
 
 
 @router.get("/campaigns")
@@ -66,21 +78,78 @@ async def post_send_campaign(
     return {"success": True, "message": "Campaign queued for delivery"}
 
 
-@router.get("/track/open/{token}.png")
-async def get_track_open(
+# --- Tracking: primary URLs use opaque token (same as phishing_recipients.tracking_token). ---
+
+
+@router.get("/track/{token}/open.png")
+async def get_track_open_png(
     token: str,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ):
-    await track_open(session, token)
+    ip, ua = _client_meta(request)
+    await track_open(session, token, ip_address=ip, user_agent=ua)
+    return Response(content=TRACKING_PIXEL_PNG, media_type="image/png")
+
+
+@router.post("/track/{token}/credential")
+async def post_track_credential(
+    token: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+):
+    """Simulated credential harvest (training). Password is never stored."""
+    form = await request.form()
+    username = (form.get("username") or form.get("email") or "") if form else ""
+    username_str = str(username).strip()[:200] if username else None
+    ip, ua = _client_meta(request)
+    recipient = await track_credential_submit(session, token, ip_address=ip, user_agent=ua, username_hint=username_str)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Invalid tracking link") from None
+    # Simple acknowledgment page (no secrets)
+    return HTMLResponse(
+        content="<html><body style='font-family:system-ui;padding:2rem'>"
+        "<p>This was a <strong>simulated phishing exercise</strong>. No credentials were stored.</p>"
+        "<p>You may close this window.</p></body></html>",
+        status_code=200,
+    )
+
+
+@router.get("/track/{token}")
+async def get_track_click_primary(
+    token: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+):
+    ip, ua = _client_meta(request)
+    recipient = await track_click(session, token, ip_address=ip, user_agent=ua)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Invalid tracking link") from None
+    return RedirectResponse(url=recipient.destination_url)
+
+
+# --- Legacy tracking URLs (still supported for older sent emails) ---
+
+
+@router.get("/track/open/{token}.png")
+async def get_track_open_legacy(
+    token: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+):
+    ip, ua = _client_meta(request)
+    await track_open(session, token, ip_address=ip, user_agent=ua)
     return Response(content=TRACKING_PIXEL_PNG, media_type="image/png")
 
 
 @router.get("/track/click/{token}")
-async def get_track_click(
+async def get_track_click_legacy(
     token: str,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ):
-    url = await track_click(session, token)
-    if not url:
-        raise HTTPException(status_code=404, detail="Invalid tracking link")
-    return RedirectResponse(url=url)
+    ip, ua = _client_meta(request)
+    recipient = await track_click(session, token, ip_address=ip, user_agent=ua)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Invalid tracking link") from None
+    return RedirectResponse(url=recipient.destination_url)

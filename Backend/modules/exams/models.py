@@ -17,6 +17,7 @@ class Exam(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    certificate_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class ExamQuestion(Base):
@@ -60,9 +61,11 @@ class Certificate(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), index=True)
+    exam_id: Mapped[int | None] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=True, index=True)
+    course_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("courses.id", ondelete="CASCADE"), nullable=True, index=True)
     exam_title: Mapped[str] = mapped_column(String(500), nullable=False)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="valid")
     issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    certificate_template_key: Mapped[str] = mapped_column(String(64), default="default")

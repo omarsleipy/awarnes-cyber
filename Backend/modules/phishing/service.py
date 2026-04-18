@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import logging
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
-
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
 from core.database import AsyncSessionLocal
 from core.mailer import send_email
+from modules.monitoring import repository as activity_repo
+from modules.settings.service import get_smtp_for_organization
 from modules.phishing import repository as repo
 from modules.phishing.schemas import CampaignCreate, CampaignOut
+from modules.phishing.models import PhishingRecipient
 from modules.users.repository import get_all, get_by_department
 
 logger = logging.getLogger(__name__)
@@ -22,31 +25,66 @@ _jinja_env = Environment(
     autoescape=select_autoescape(["html", "xml"]),
 )
 
-DEFAULT_TEMPLATE = "microsoft"
-ALLOWED_TEMPLATE_KEYS = {"microsoft", "google", "local_bank"}
+# Active HTML templates (file names without .html)
+DEFAULT_TEMPLATE = "outlook_login"
+ALLOWED_TEMPLATE_KEYS = frozenset({"outlook_login", "google_security_alert", "hr_policy"})
+
+# Map legacy / UI aliases to template files
+_TEMPLATE_ALIASES: dict[str, str] = {
+    "microsoft": "outlook_login",
+    "password-reset": "outlook_login",
+    "it-alert": "google_security_alert",
+    "password reset": "outlook_login",
+    "google": "google_security_alert",
+    "local_bank": "hr_policy",
+    "benefits": "hr_policy",
+    "exec-request": "hr_policy",
+    "outlook": "outlook_login",
+    "outlook login": "outlook_login",
+    "google security": "google_security_alert",
+    "hr": "hr_policy",
+    "hr policy": "hr_policy",
+    "internal hr": "hr_policy",
+}
 
 
 def _normalize_template(template: str) -> str:
     normalized = (template or "").strip().lower().replace(" ", "_")
     if normalized in ALLOWED_TEMPLATE_KEYS:
         return normalized
+    if normalized in _TEMPLATE_ALIASES:
+        return _TEMPLATE_ALIASES[normalized]
     if "google" in normalized:
-        return "google"
-    if "bank" in normalized:
-        return "local_bank"
-    if "microsoft" in normalized or "password" in normalized:
-        return "microsoft"
+        return "google_security_alert"
+    if "hr" in normalized or "policy" in normalized or "benefit" in normalized or "executive" in normalized:
+        return "hr_policy"
+    if "outlook" in normalized or "microsoft" in normalized or "password" in normalized or "sign" in normalized:
+        return "outlook_login"
     return DEFAULT_TEMPLATE
 
 
-def _build_tracking_urls(token: str) -> tuple[str, str]:
-    base_url = get_settings().APP_BASE_URL.rstrip("/")
-    pixel_url = f"{base_url}/api/phishing/track/open/{token}.png"
-    click_url = f"{base_url}/api/phishing/track/click/{token}"
-    return pixel_url, click_url
+def _build_tracking_urls(token: str) -> tuple[str, str, str]:
+    """
+    Returns (click_url, pixel_url, credential_submit_url).
+    Opaque `token` is the recipient's tracking_token (not the integer DB id, to avoid guessable URLs).
+    """
+    base = get_settings().APP_BASE_URL.rstrip("/")
+    # Primary contract: /api/phishing/track/{token} and /api/phishing/track/{token}/open.png
+    click_url = f"{base}/api/phishing/track/{token}"
+    pixel_url = f"{base}/api/phishing/track/{token}/open.png"
+    credential_url = f"{base}/api/phishing/track/{token}/credential"
+    return click_url, pixel_url, credential_url
 
 
-def _render_template(*, template_key: str, full_name: str, campaign_name: str, click_url: str, pixel_url: str) -> str:
+def _render_template(
+    *,
+    template_key: str,
+    full_name: str,
+    campaign_name: str,
+    click_url: str,
+    pixel_url: str,
+    credential_url: str,
+) -> str:
     template_name = f"{template_key}.html"
     try:
         template = _jinja_env.get_template(template_name)
@@ -57,6 +95,7 @@ def _render_template(*, template_key: str, full_name: str, campaign_name: str, c
         campaign_name=campaign_name,
         click_url=click_url,
         pixel_url=pixel_url,
+        credential_url=credential_url,
     )
 
 
@@ -71,6 +110,33 @@ def _out(c) -> CampaignOut:
         reported=c.reported,
         status=c.status,
         createdAt=c.created_at.strftime("%Y-%m-%d") if c.created_at else "",
+    )
+
+
+async def _record_phishing_activity(
+    session: AsyncSession,
+    *,
+    recipient: PhishingRecipient,
+    activity_type: str,
+    title: str,
+    severity: str = "warning",
+    details: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    await activity_repo.create(
+        session,
+        organization_id=recipient.organization_id,
+        user_id=recipient.user_id,
+        activity_type=activity_type,
+        title=title,
+        severity=severity,
+        details=details,
+        ip=ip_address,
+        user_agent=user_agent,
+        exam_id=None,
+        phishing_campaign_id=recipient.campaign_id,
+        phishing_recipient_id=recipient.id,
     )
 
 
@@ -112,6 +178,7 @@ async def send_campaign(campaign_id: int, organization_id: int, destination_url:
 
         template_key = _normalize_template(campaign.template)
         target_url = destination_url or "https://example.com"
+        smtp_cfg = await get_smtp_for_organization(session, organization_id)
         sent_count = 0
         for user in users:
             token = secrets.token_urlsafe(24)
@@ -124,13 +191,14 @@ async def send_campaign(campaign_id: int, organization_id: int, destination_url:
                 destination_url=target_url,
                 tracking_token=token,
             )
-            pixel_url, click_url = _build_tracking_urls(token)
+            click_url, pixel_url, credential_url = _build_tracking_urls(token)
             html = _render_template(
                 template_key=template_key,
                 full_name=user.name,
                 campaign_name=campaign.name,
                 click_url=click_url,
                 pixel_url=pixel_url,
+                credential_url=credential_url,
             )
             try:
                 await send_email(
@@ -138,6 +206,7 @@ async def send_campaign(campaign_id: int, organization_id: int, destination_url:
                     subject=f"Action required: {campaign.name}",
                     html=html,
                     text=f"Hi {user.name}, review this message: {click_url}",
+                    smtp_config=smtp_cfg,
                 )
                 await repo.recipient_mark_sent(session, recipient.id)
                 await repo.campaign_increment_sent(session, campaign.id, organization_id=organization_id)
@@ -158,12 +227,79 @@ async def send_campaign(campaign_id: int, organization_id: int, destination_url:
         await session.commit()
 
 
-async def track_open(session: AsyncSession, token: str) -> bool:
-    return (await repo.recipient_increment_open(session, token)) is not None
+async def track_open(
+    session: AsyncSession,
+    token: str,
+    *,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> bool:
+    recipient = await repo.recipient_increment_open(session, token)
+    if not recipient:
+        return False
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    await _record_phishing_activity(
+        session,
+        recipient=recipient,
+        activity_type="phishing_tracking_pixel_opened",
+        title="Phishing simulation: tracking pixel loaded (email/attachment viewed)",
+        severity="warning",
+        details=f"Opened at {ts}. Recipient email: {recipient.email}. Simulated attachment/email open tracking.",
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    return True
 
 
-async def track_click(session: AsyncSession, token: str) -> str | None:
+async def track_click(
+    session: AsyncSession,
+    token: str,
+    *,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> PhishingRecipient | None:
     recipient = await repo.recipient_increment_click(session, token)
     if not recipient:
         return None
-    return recipient.destination_url
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    await _record_phishing_activity(
+        session,
+        recipient=recipient,
+        activity_type="phishing_link_clicked",
+        title="Phishing simulation: malicious link clicked",
+        severity="critical",
+        details=f"Clicked at {ts}. Destination after redirect is the configured safe URL (training). Recipient: {recipient.email}.",
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    return recipient
+
+
+async def track_credential_submit(
+    session: AsyncSession,
+    token: str,
+    *,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    username_hint: str | None = None,
+) -> PhishingRecipient | None:
+    """Logs a simulated credential submission (training). Does not persist passwords."""
+    recipient = await repo.recipient_get_by_token(session, token)
+    if not recipient:
+        return None
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    hint = ""
+    if username_hint:
+        hint = f" Username field present (partially redacted): {username_hint[:2]}***."
+    await _record_phishing_activity(
+        session,
+        recipient=recipient,
+        activity_type="phishing_credentials_submitted",
+        title="Phishing simulation: credentials submitted on fake page",
+        severity="critical",
+        details=f"Submitted at {ts}.{hint} Password value is never stored (training simulation only). Recipient: {recipient.email}.",
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    await session.flush()
+    return recipient
