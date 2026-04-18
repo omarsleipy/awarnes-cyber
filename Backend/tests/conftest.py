@@ -13,7 +13,6 @@ The database is created automatically if missing (connects to the `postgres` mai
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 
 # Windows: default Proactor loop + asyncpg/SQLAlchemy can leave broken pools after each test loop.
@@ -23,6 +22,8 @@ if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except AttributeError:
         pass
+
+import os
 
 # ── Environment BEFORE any application imports ───────────────────────────────
 os.environ.setdefault("CYBERAWARE_TESTING", "1")
@@ -169,8 +170,6 @@ async def _clean_tables() -> AsyncIterator[None]:
         _schema_initialized = True
     await _truncate_all()
     yield
-    # pytest-asyncio uses a fresh event loop per test by default; recycle the pool so asyncpg is not tied to a closed loop.
-    await engine.dispose()
 
 
 @pytest.fixture
