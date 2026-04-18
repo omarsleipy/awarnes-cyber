@@ -17,13 +17,19 @@ if os.getenv("CYBERAWARE_TESTING") and "+asyncpg" in settings.DB_URL:
     _connect_args["ssl"] = False
     _connect_args["timeout"] = 15
 
-_engine_kw = dict(echo=False, pool_pre_ping=True)
+_engine_kw = dict(
+    echo=False,
+    pool_pre_ping=True,
+    pool_timeout=60,
+    pool_size=20,
+    max_overflow=10,
+)
 if os.getenv("CYBERAWARE_TESTING"):
-    # Fresh connection per checkout avoids stale asyncpg pools across pytest-asyncio loops on Windows.
+    # Fresh checkout per use avoids asyncpg connections tied to a closed pytest-asyncio loop on Windows.
     _engine_kw["poolclass"] = NullPool
-else:
-    _engine_kw["pool_size"] = 5
-    _engine_kw["max_overflow"] = 10
+    # NullPool does not accept queue-pool sizing arguments.
+    for _k in ("pool_timeout", "pool_size", "max_overflow"):
+        _engine_kw.pop(_k, None)
 
 engine = create_async_engine(
     settings.DB_URL,
